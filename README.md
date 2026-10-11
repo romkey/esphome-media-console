@@ -101,17 +101,25 @@ You need Docker and a Home Assistant instance.
    Set `name`, `media_console_media_player` and `media_console_ha_base_url`
    (plain `http://` on your LAN; see [Album art](#album-art)).
 
-3. Build and flash. Docker Desktop on macOS can't pass USB through, so for
-   the first flash compile, then upload the `.factory.bin` with
-   <https://web.esphome.io> (Chrome/Edge). After that, update over the air:
+3. Build and flash. Docker Desktop on macOS can't pass USB through, so the
+   first flash goes through <https://web.esphome.io> (Chrome/Edge). Compile,
+   then copy the factory image out of the build volume; replace
+   `media-console` with the `name:` you set:
 
    ```bash
    docker compose run --rm esphome compile examples/local-living-room.yaml
-   docker compose run --rm esphome run examples/local-living-room.yaml
+   docker compose run --rm --entrypoint sh esphome -c 'cp "$(find /build/media-console -name firmware.factory.bin)" /project/'
    ```
 
-   Or use the dashboard: `docker compose up dashboard`, then
-   <http://localhost:6052>.
+   Upload `firmware.factory.bin` (now in the repo root, gitignored) with
+   web.esphome.io. Or use the dashboard, `docker compose up dashboard`, then
+   <http://localhost:6052>: **Install → Manual download → Factory format**.
+
+   After that, update over the air:
+
+   ```bash
+   docker compose run --rm esphome run examples/local-living-room.yaml
+   ```
 
 4. In Home Assistant, add the device, then open its settings and enable
    **Allow the device to perform Home Assistant actions**. Without this, the

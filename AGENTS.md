@@ -12,3 +12,6 @@ open a pull request; CI and Lint must pass before it can merge.
   album art size, and never add TLS to the album art fetch.
 - PLAN.md records the original design and what still needs testing on
   hardware.
+- The first release should be `v0.1.0` (what `project_version` and the docs
+  say): run the Release workflow with **minor**, since
+  `scripts/bump-version.sh` counts up from `v0.0.0` when there are no tags.

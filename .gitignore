@@ -21,3 +21,6 @@ __pycache__/
 
 # Firmware copied out of Docker by the old compose file
 /build/
+
+# Factory images copied out of the build volume for web.esphome.io
+/firmware*.bin
