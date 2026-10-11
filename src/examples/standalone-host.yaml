@@ -1,0 +1,87 @@
+# Example: using the media console in a *different* project, with its own
+# board definition. Nothing here comes from boards/. CI compiles this file to
+# make sure the media_console package stays independent of the Hosyond board.
+#
+# The pins are for a generic ESP32 wired to an SPI ST7796 panel with an I2C
+# FT6336 capacitive touch controller. Change them to match your hardware.
+
+substitutions:
+  name: media-console-example
+  friendly_name: Media Console Example
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+packages:
+  media_console: !include
+    file: ../media_console/media_console.yaml
+    vars:
+      media_player: ${media_player}
+      ha_base_url: ${ha_base_url}
+      backlight_id: backlight
+      accent_color: "0x81C784"
+  # Wi-Fi, API key, OTA, media_player and ha_base_url (see example-local.yaml).
+  # Last, so its substitutions override the package defaults above.
+  local: !include ../local.yaml
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ap:
+    ssid: ${friendly_name} Fallback
+
+captive_portal:
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+display:
+  - platform: mipi_spi
+    id: panel
+    model: ST7796
+    cs_pin: GPIO5
+    dc_pin: GPIO27
+    reset_pin: GPIO33
+    dimensions:
+      width: 480
+      height: 320
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+    update_interval: never
+    auto_clear_enabled: false
+
+touchscreen:
+  - platform: ft63x6
+    id: touch
+    display: panel
+    interrupt_pin: GPIO32
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+
+output:
+  - platform: ledc
+    id: backlight_pwm
+    pin: GPIO25
+
+light:
+  - platform: monochromatic
+    id: backlight
+    name: Backlight
+    output: backlight_pwm
+    restore_mode: ALWAYS_ON

@@ -1,0 +1,32 @@
+# Copy to src/local.yaml and edit. Anything named src/local* is gitignored.
+#
+# The values below are placeholders so the project compiles out of the box
+# (this is what CI uses). Replace all of them before flashing a real device.
+
+substitutions:
+  # The Home Assistant media player to show and control.
+  media_player: media_player.living_room
+  # Where the device fetches album art from. Plain http on your LAN is best:
+  # the board has no PSRAM, so TLS is expensive.
+  ha_base_url: http://homeassistant.local:8123
+
+  # Optional overrides (any substitution from the board files or the media
+  # console package can be set here), for example:
+  # accent_color: "0x81C784"
+  # idle_dim_timeout: 30s
+  # board_color_order: rgb        # if red and blue are swapped
+  # board_mirror_y: "true"        # if the picture is upside down
+  # touch_x_min: "300"            # touch calibration
+
+wifi:
+  ssid: "your-wifi-ssid"
+  password: "your-wifi-password"
+
+api:
+  encryption:
+    # Placeholder. Generate your own with: openssl rand -base64 32
+    key: "Vz99SuZZQ5oCJMyZScnvfg6biURbnWjrgnd4+PbbPjI="
+
+ota:
+  - platform: esphome
+    password: "change-me"

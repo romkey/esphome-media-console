@@ -1,0 +1,11 @@
+# Per-install settings and secrets
+src/local*
+src/secrets.yaml
+
+# ESPHome / PlatformIO build output
+src/.esphome/
+**/.pioenvs/
+**/.piolibdeps/
+build/
+
+.DS_Store

@@ -1,0 +1,739 @@
+# ESPHome media console: album art, track info, progress, transport and volume
+# controls for a Home Assistant media_player, drawn with LVGL.
+#
+# This package knows nothing about any particular board. The host config must
+# provide:
+#   - one `display` and one `touchscreen` (LVGL picks them up automatically)
+#   - `wifi` and `api`
+#   - a dimmable `light` for the backlight (pass its id as `backlight_id`)
+#
+# Include it from a local checkout:
+#
+#   packages:
+#     media_console: !include
+#       file: media_console/media_console.yaml
+#       vars:
+#         media_player: media_player.living_room
+#         ha_base_url: http://homeassistant.local:8123
+#         backlight_id: my_backlight
+#
+# or straight from GitHub:
+#
+#   packages:
+#     media_console:
+#       url: https://github.com/romkey/esphome-media-console
+#       ref: main
+#       files: [src/media_console/media_console.yaml]
+#       vars: { ... }
+#
+# Layout is tuned for a 480x320 landscape screen.
+#
+# Required vars: media_player, ha_base_url, backlight_id
+# Optional vars: see the `substitutions` block below.
+#
+# In Home Assistant, enable "Allow the device to perform Home Assistant
+# actions" for this device, or the buttons will do nothing.
+
+substitutions:
+  # Album art edge in pixels. The art is decoded into one RGB565 buffer of
+  # art_size x art_size x 2 bytes, so mind the RAM on boards without PSRAM.
+  art_size: "180"
+  # Dim the backlight after this long without a touch, and how far to dim it.
+  idle_dim_timeout: 60s
+  idle_dim_brightness: "15%"
+  # UI accent color (progress, volume, active toggles). Not red on purpose.
+  accent_color: "0x4FC3F7"
+
+# --------------------------------------------------------------------------
+# State and attributes mirrored from Home Assistant
+# --------------------------------------------------------------------------
+
+text_sensor:
+  - platform: homeassistant
+    id: mc_state
+    entity_id: ${media_player}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            // Freeze or restart the local progress clock on play/pause so the
+            // bar neither jumps nor keeps running while paused.
+            uint32_t now = millis();
+            if (id(mc_playing)) {
+              id(mc_position) += (now - id(mc_position_ms)) / 1000.0f;
+            }
+            id(mc_position_ms) = now;
+            id(mc_playing) = (x == "playing");
+            id(mc_active) = (x == "playing" || x == "paused" || x == "buffering");
+        - script.execute: mc_refresh_state
+        - script.execute: mc_refresh_progress
+  - platform: homeassistant
+    id: mc_title
+    entity_id: ${media_player}
+    attribute: media_title
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: mc_lbl_title
+            text: !lambda 'return x;'
+  - platform: homeassistant
+    id: mc_artist
+    entity_id: ${media_player}
+    attribute: media_artist
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: mc_lbl_artist
+            text: !lambda 'return x;'
+  - platform: homeassistant
+    id: mc_album
+    entity_id: ${media_player}
+    attribute: media_album_name
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: mc_lbl_album
+            text: !lambda 'return x;'
+  - platform: homeassistant
+    id: mc_player_name
+    entity_id: ${media_player}
+    attribute: friendly_name
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: mc_lbl_player
+            text: !lambda 'return x;'
+  - platform: homeassistant
+    id: mc_repeat
+    entity_id: ${media_player}
+    attribute: repeat
+    internal: true
+    on_value:
+      then:
+        - script.execute: mc_refresh_toggles
+  # Album art source URLs. Either may change when the track does.
+  - platform: homeassistant
+    id: mc_picture
+    entity_id: ${media_player}
+    attribute: entity_picture
+    internal: true
+    on_value:
+      then:
+        - script.execute: mc_update_art
+  - platform: homeassistant
+    id: mc_picture_local
+    entity_id: ${media_player}
+    attribute: entity_picture_local
+    internal: true
+    on_value:
+      then:
+        - script.execute: mc_update_art
+  # Exposed to Home Assistant so album art problems can be diagnosed without a
+  # serial cable.
+  - platform: template
+    id: mc_art_status
+    name: Album Art Status
+    entity_category: diagnostic
+
+sensor:
+  - platform: homeassistant
+    id: mc_duration
+    entity_id: ${media_player}
+    attribute: media_duration
+    internal: true
+    on_value:
+      then:
+        - lambda: 'id(mc_duration_s) = isnan(x) ? 0.0f : x;'
+        - script.execute: mc_refresh_progress
+  - platform: homeassistant
+    id: mc_position_sensor
+    entity_id: ${media_player}
+    attribute: media_position
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(mc_position) = isnan(x) ? 0.0f : x;
+            id(mc_position_ms) = millis();
+        - script.execute: mc_refresh_progress
+  - platform: homeassistant
+    id: mc_volume
+    entity_id: ${media_player}
+    attribute: volume_level
+    internal: true
+    on_value:
+      then:
+        # Don't fight the user's finger while they drag the slider.
+        - if:
+            condition:
+              lambda: 'return !lv_obj_has_state(id(mc_slider_volume), LV_STATE_PRESSED);'
+            then:
+              - lvgl.slider.update:
+                  id: mc_slider_volume
+                  value: !lambda 'return isnan(x) ? 0 : (int) roundf(x * 100.0f);'
+        - lvgl.label.update:
+            id: mc_lbl_volume
+            text: !lambda |-
+              char buf[8];
+              snprintf(buf, sizeof(buf), "%d%%", isnan(x) ? 0 : (int) roundf(x * 100.0f));
+              return std::string(buf);
+
+binary_sensor:
+  - platform: homeassistant
+    id: mc_muted
+    entity_id: ${media_player}
+    attribute: is_volume_muted
+    internal: true
+    on_state:
+      then:
+        - script.execute: mc_refresh_toggles
+  - platform: homeassistant
+    id: mc_shuffle
+    entity_id: ${media_player}
+    attribute: shuffle
+    internal: true
+    on_state:
+      then:
+        - script.execute: mc_refresh_toggles
+
+# --------------------------------------------------------------------------
+# Local state
+# --------------------------------------------------------------------------
+
+globals:
+  - id: mc_active          # true while playing/paused/buffering
+    type: bool
+    initial_value: "false"
+  - id: mc_playing
+    type: bool
+    initial_value: "false"
+  - id: mc_position        # seconds at the moment mc_position_ms was taken
+    type: float
+    initial_value: "0"
+  - id: mc_position_ms
+    type: uint32_t
+    initial_value: "0"
+  - id: mc_duration_s
+    type: float
+    initial_value: "0"
+  - id: mc_art_url_wanted
+    type: std::string
+    initial_value: '""'
+  - id: mc_art_url_loaded
+    type: std::string
+    initial_value: '""'
+
+# --------------------------------------------------------------------------
+# Album art
+#
+# The board has no PSRAM, so we never download a full-size cover. Music
+# Assistant serves art through an image proxy that resizes server-side; we ask
+# it for exactly art_size pixels. Everything else is fetched as-is and shrunk
+# while decoding.
+# --------------------------------------------------------------------------
+
+http_request:
+  id: mc_http
+  timeout: 10s
+  verify_ssl: false
+
+image:
+  - platform: online_image
+    id: mc_album_art
+    url: ${ha_base_url}
+    format: JPEG
+    type: RGB565
+    resize: ${art_size}x${art_size}
+    update_interval: never
+    on_download_finished:
+      then:
+        - lambda: |-
+            id(mc_art_url_loaded) = id(mc_art_url_wanted);
+            ESP_LOGI("media_console", "album art ok, free heap %u", (unsigned) esp_get_free_heap_size());
+        - text_sensor.template.publish:
+            id: mc_art_status
+            state: "ok"
+        - lvgl.image.update:
+            id: mc_img_art
+            src: mc_album_art
+        - lvgl.widget.show: mc_img_art
+    on_error:
+      then:
+        - lambda: |-
+            // Forget the URL so a later retry isn't skipped as "unchanged".
+            id(mc_art_url_loaded) = "";
+            ESP_LOGW("media_console", "album art failed, free heap %u", (unsigned) esp_get_free_heap_size());
+        - text_sensor.template.publish:
+            id: mc_art_status
+            state: "download or decode failed"
+        - lvgl.widget.hide: mc_img_art
+
+script:
+  # Pick the best art URL from the player's attributes and (re)load it.
+  - id: mc_update_art
+    mode: restart
+    then:
+      - lambda: |-
+          std::string base = "${ha_base_url}";
+          std::string remote = id(mc_picture).state;
+          std::string local = id(mc_picture_local).state;
+          std::string url;
+
+          auto absolute = [&](const std::string &u) {
+            if (u.empty()) return std::string();
+            if (u.rfind("http", 0) == 0) return u;
+            if (u[0] == '/') return base + u;
+            return std::string();
+          };
+
+          // Plain http only: no TLS on a board without PSRAM. Prefer a remote
+          // URL we can reach over http (Music Assistant's image proxy), else
+          // Home Assistant's own proxy path.
+          if (remote.rfind("http://", 0) == 0) {
+            url = remote;
+          } else if (!local.empty()) {
+            url = absolute(local);
+          } else {
+            url = absolute(remote);
+          }
+          if (url.rfind("http://", 0) != 0) url.clear();
+
+          // Music Assistant's image proxy resizes on the server. Ask for the
+          // size we need (and JPEG, which is what we decode).
+          if (url.find("/imageproxy") != std::string::npos) {
+            auto set_param = [&](const std::string &key, const std::string &val) {
+              size_t q = url.find('?');
+              if (q == std::string::npos) { url += "?" + key + "=" + val; return; }
+              size_t p = url.find(key + "=", q);
+              if (p == std::string::npos) { url += "&" + key + "=" + val; return; }
+              size_t e = url.find('&', p);
+              url.replace(p, e == std::string::npos ? std::string::npos : e - p, key + "=" + val);
+            };
+            set_param("size", "${art_size}");
+            set_param("fmt", "jpeg");
+          }
+          id(mc_art_url_wanted) = url;
+      - if:
+          condition:
+            lambda: 'return id(mc_art_url_wanted).empty();'
+          then:
+            - lambda: 'id(mc_art_url_loaded) = "";'
+            - lvgl.widget.hide: mc_img_art
+            - text_sensor.template.publish:
+                id: mc_art_status
+                state: "no art"
+          else:
+            - if:
+                condition:
+                  lambda: 'return id(mc_art_url_wanted) != id(mc_art_url_loaded);'
+                then:
+                  - online_image.set_url:
+                      id: mc_album_art
+                      url: !lambda 'return id(mc_art_url_wanted);'
+
+  # Show the player UI while something is playing or paused, else a message.
+  - id: mc_refresh_state
+    then:
+      - if:
+          condition:
+            lambda: 'return id(mc_active);'
+          then:
+            - lvgl.widget.show: mc_content
+            - lvgl.widget.hide: mc_lbl_idle
+          else:
+            - lvgl.widget.hide: mc_content
+            - lvgl.widget.show: mc_lbl_idle
+      - lvgl.label.update:
+          id: mc_lbl_play
+          text: !lambda 'return std::string(id(mc_playing) ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);'
+
+  # Called on every position/duration/state change and once a second while
+  # playing. Interpolates locally so we don't need a time source.
+  - id: mc_refresh_progress
+    then:
+      - lambda: |-
+          float dur = id(mc_duration_s);
+          float pos = id(mc_position);
+          if (id(mc_playing)) pos += (millis() - id(mc_position_ms)) / 1000.0f;
+          if (dur > 0 && pos > dur) pos = dur;
+          if (pos < 0) pos = 0;
+          auto fmt = [](float s) {
+            int t = (int) s;
+            char buf[16];
+            if (t >= 3600) snprintf(buf, sizeof(buf), "%d:%02d:%02d", t / 3600, (t / 60) % 60, t % 60);
+            else snprintf(buf, sizeof(buf), "%d:%02d", t / 60, t % 60);
+            return std::string(buf);
+          };
+          std::string txt = dur > 0 ? fmt(pos) + " / " + fmt(dur) : fmt(pos);
+          lv_label_set_text(id(mc_lbl_time), txt.c_str());
+          lv_bar_set_value(id(mc_bar_progress), dur > 0 ? (int) (pos * 1000.0f / dur) : 0, LV_ANIM_OFF);
+
+  # Reflect shuffle / repeat / mute state in the button colors and icons.
+  - id: mc_refresh_toggles
+    then:
+      - lvgl.widget.update:
+          id: mc_lbl_shuffle
+          text_color: !lambda 'return id(mc_shuffle).state ? lv_color_hex(${accent_color}) : lv_color_hex(0x8A949E);'
+      - lvgl.widget.update:
+          id: mc_lbl_repeat
+          text_color: !lambda 'return id(mc_repeat).state != "off" && !id(mc_repeat).state.empty() ? lv_color_hex(${accent_color}) : lv_color_hex(0x8A949E);'
+      - lvgl.label.update:
+          id: mc_lbl_repeat
+          text: !lambda 'return std::string(id(mc_repeat).state == "one" ? LV_SYMBOL_LOOP " 1" : LV_SYMBOL_LOOP);'
+      - lvgl.label.update:
+          id: mc_lbl_mute
+          text: !lambda 'return std::string(id(mc_muted).state ? LV_SYMBOL_MUTE : LV_SYMBOL_VOLUME_MAX);'
+
+  # Controls. Each calls a Home Assistant action on the media player.
+  - id: mc_play_pause
+    then:
+      - homeassistant.action:
+          action: media_player.media_play_pause
+          data:
+            entity_id: ${media_player}
+  - id: mc_next
+    then:
+      - homeassistant.action:
+          action: media_player.media_next_track
+          data:
+            entity_id: ${media_player}
+  - id: mc_previous
+    then:
+      - homeassistant.action:
+          action: media_player.media_previous_track
+          data:
+            entity_id: ${media_player}
+  - id: mc_toggle_shuffle
+    then:
+      - homeassistant.action:
+          action: media_player.shuffle_set
+          data:
+            entity_id: ${media_player}
+            shuffle: !lambda 'return id(mc_shuffle).state ? "false" : "true";'
+  - id: mc_cycle_repeat
+    then:
+      - homeassistant.action:
+          action: media_player.repeat_set
+          data:
+            entity_id: ${media_player}
+            repeat: !lambda |-
+              const std::string &r = id(mc_repeat).state;
+              if (r == "off" || r.empty()) return "all";
+              if (r == "all") return "one";
+              return "off";
+  - id: mc_toggle_mute
+    then:
+      - homeassistant.action:
+          action: media_player.volume_mute
+          data:
+            entity_id: ${media_player}
+            is_volume_muted: !lambda 'return id(mc_muted).state ? "false" : "true";'
+  - id: mc_set_volume
+    then:
+      - homeassistant.action:
+          action: media_player.volume_set
+          data:
+            entity_id: ${media_player}
+            volume_level: !lambda 'return to_string(lv_slider_get_value(id(mc_slider_volume)) / 100.0f);'
+
+  # Dim after a period of inactivity; the first touch afterwards only wakes the
+  # screen (a full-screen overlay swallows it) instead of pressing a button.
+  - id: mc_dim
+    then:
+      - light.turn_on:
+          id: ${backlight_id}
+          brightness: ${idle_dim_brightness}
+          transition_length: 1s
+      - lvgl.widget.show: mc_wake_overlay
+  - id: mc_wake
+    then:
+      - lvgl.widget.hide: mc_wake_overlay
+      - light.turn_on:
+          id: ${backlight_id}
+          brightness: 100%
+          transition_length: 200ms
+
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(mc_playing);'
+          then:
+            - script.execute: mc_refresh_progress
+
+# --------------------------------------------------------------------------
+# UI
+# --------------------------------------------------------------------------
+
+font:
+  - file: "gfonts://Roboto"
+    id: mc_font_small
+    size: 14
+    glyphsets: [GF_Latin_Kernel]
+  - file: "gfonts://Roboto"
+    id: mc_font_medium
+    size: 18
+    glyphsets: [GF_Latin_Kernel]
+  - file: "gfonts://Roboto@700"
+    id: mc_font_large
+    size: 24
+    glyphsets: [GF_Latin_Kernel]
+
+lvgl:
+  buffer_size: 25%
+  on_idle:
+    - timeout: ${idle_dim_timeout}
+      then:
+        - script.execute: mc_dim
+  top_layer:
+    widgets:
+      - obj:
+          id: mc_wake_overlay
+          hidden: true
+          width: 100%
+          height: 100%
+          bg_opa: TRANSP
+          border_width: 0
+          on_press:
+            then:
+              - script.execute: mc_wake
+  pages:
+    - id: media_console_page
+      bg_color: 0x0F1318
+      text_font: mc_font_medium
+      text_color: 0xE6EAEE
+      widgets:
+        # Top bar: player name
+        - label:
+            id: mc_lbl_player
+            x: 12
+            y: 6
+            width: 456
+            text: ""
+            text_font: mc_font_small
+            text_color: 0x8A949E
+            long_mode: DOT
+
+        # Shown instead of the player UI when nothing is playing
+        - label:
+            id: mc_lbl_idle
+            align: CENTER
+            text: "Nothing playing"
+            text_font: mc_font_large
+            text_color: 0x8A949E
+
+        - obj:
+            id: mc_content
+            hidden: true
+            x: 0
+            y: 0
+            width: 100%
+            height: 100%
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            scrollable: false
+            widgets:
+              # Album art, with a music-note placeholder behind it
+              - obj:
+                  x: 12
+                  y: 32
+                  width: ${art_size}
+                  height: ${art_size}
+                  bg_color: 0x1B222A
+                  border_width: 0
+                  radius: 6
+                  pad_all: 0
+                  scrollable: false
+                  widgets:
+                    - label:
+                        align: CENTER
+                        text: ""
+                        text_font: montserrat_28
+                        text_color: 0x3A4652
+                    - image:
+                        id: mc_img_art
+                        hidden: true
+                        align: CENTER
+                        src: mc_album_art
+
+              # Track info
+              - label:
+                  id: mc_lbl_title
+                  x: 204
+                  y: 32
+                  width: 264
+                  text: ""
+                  text_font: mc_font_large
+                  long_mode: SCROLL_CIRCULAR
+              - label:
+                  id: mc_lbl_artist
+                  x: 204
+                  y: 66
+                  width: 264
+                  text: ""
+                  long_mode: SCROLL_CIRCULAR
+              - label:
+                  id: mc_lbl_album
+                  x: 204
+                  y: 92
+                  width: 264
+                  text: ""
+                  text_font: mc_font_small
+                  text_color: 0x8A949E
+                  long_mode: SCROLL_CIRCULAR
+
+              # Progress
+              - bar:
+                  id: mc_bar_progress
+                  x: 204
+                  y: 126
+                  width: 264
+                  height: 8
+                  min_value: 0
+                  max_value: 1000
+                  value: 0
+                  bg_color: 0x2A323B
+                  indicator:
+                    bg_color: ${accent_color}
+              - label:
+                  id: mc_lbl_time
+                  x: 204
+                  y: 138
+                  width: 264
+                  text: ""
+                  text_font: mc_font_small
+                  text_color: 0x8A949E
+                  text_align: RIGHT
+
+              # Transport controls
+              - button:
+                  x: 204
+                  y: 164
+                  width: 48
+                  height: 48
+                  bg_opa: TRANSP
+                  shadow_width: 0
+                  on_click:
+                    then:
+                      - script.execute: mc_toggle_shuffle
+                  widgets:
+                    - label:
+                        id: mc_lbl_shuffle
+                        align: CENTER
+                        text: ""
+                        text_font: montserrat_20
+                        text_color: 0x8A949E
+              - button:
+                  x: 256
+                  y: 164
+                  width: 48
+                  height: 48
+                  bg_opa: TRANSP
+                  shadow_width: 0
+                  on_click:
+                    then:
+                      - script.execute: mc_previous
+                  widgets:
+                    - label:
+                        align: CENTER
+                        text: ""
+                        text_font: montserrat_28
+              - button:
+                  x: 308
+                  y: 164
+                  width: 56
+                  height: 48
+                  radius: 24
+                  bg_color: ${accent_color}
+                  shadow_width: 0
+                  on_click:
+                    then:
+                      - script.execute: mc_play_pause
+                  widgets:
+                    - label:
+                        id: mc_lbl_play
+                        align: CENTER
+                        text: ""
+                        text_font: montserrat_28
+                        text_color: 0x0F1318
+              - button:
+                  x: 368
+                  y: 164
+                  width: 48
+                  height: 48
+                  bg_opa: TRANSP
+                  shadow_width: 0
+                  on_click:
+                    then:
+                      - script.execute: mc_next
+                  widgets:
+                    - label:
+                        align: CENTER
+                        text: ""
+                        text_font: montserrat_28
+              - button:
+                  x: 420
+                  y: 164
+                  width: 48
+                  height: 48
+                  bg_opa: TRANSP
+                  shadow_width: 0
+                  on_click:
+                    then:
+                      - script.execute: mc_cycle_repeat
+                  widgets:
+                    - label:
+                        id: mc_lbl_repeat
+                        align: CENTER
+                        text: ""
+                        text_font: montserrat_20
+                        text_color: 0x8A949E
+
+              # Volume row
+              - button:
+                  x: 12
+                  y: 252
+                  width: 56
+                  height: 56
+                  bg_opa: TRANSP
+                  shadow_width: 0
+                  on_click:
+                    then:
+                      - script.execute: mc_toggle_mute
+                  widgets:
+                    - label:
+                        id: mc_lbl_mute
+                        align: CENTER
+                        text: ""
+                        text_font: montserrat_28
+              - slider:
+                  id: mc_slider_volume
+                  x: 82
+                  y: 272
+                  width: 316
+                  height: 12
+                  min_value: 0
+                  max_value: 100
+                  value: 0
+                  bg_color: 0x2A323B
+                  indicator:
+                    bg_color: ${accent_color}
+                  knob:
+                    bg_color: 0xE6EAEE
+                    pad_all: 8
+                  on_release:
+                    then:
+                      - script.execute: mc_set_volume
+              - label:
+                  id: mc_lbl_volume
+                  x: 416
+                  y: 266
+                  width: 52
+                  text: ""
+                  text_align: RIGHT

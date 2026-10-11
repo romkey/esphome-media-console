@@ -1,0 +1,33 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  yamllint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: yamllint
+        run: |
+          pip install yamllint
+          yamllint -c .yamllint .
+
+  esphome-config:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - hosyond-4in-resistive.yaml
+          - examples/standalone-host.yaml
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the placeholder local settings
+        run: cp src/example-local.yaml src/local.yaml
+      - name: esphome config
+        run: |
+          docker compose run --rm --entrypoint esphome esphome config "${{ matrix.config }}" > /dev/null

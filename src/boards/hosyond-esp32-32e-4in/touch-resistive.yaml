@@ -1,0 +1,29 @@
+# Resistive touch (XPT2046) for the Hosyond 4.0" ESP32-32E (E32R40T).
+# Shares the LCD's SPI bus. Provides id: board_touch.
+
+substitutions:
+  # Raw ADC range of the panel. Tune with the logger output if touches land
+  # in the wrong place (see README, "Touch calibration").
+  touch_x_min: "300"
+  touch_x_max: "3800"
+  touch_y_min: "300"
+  touch_y_max: "3800"
+
+touchscreen:
+  - platform: xpt2046
+    id: board_touch
+    spi_id: board_spi
+    cs_pin: GPIO33
+    interrupt_pin: GPIO36
+    update_interval: 50ms
+    threshold: 400
+    calibration:
+      x_min: ${touch_x_min}
+      x_max: ${touch_x_max}
+      y_min: ${touch_y_min}
+      y_max: ${touch_y_max}
+    # Maps the panel's native portrait coordinates onto the rotated display.
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: true

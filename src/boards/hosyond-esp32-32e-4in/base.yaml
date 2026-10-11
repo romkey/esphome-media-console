@@ -1,0 +1,61 @@
+# Board definition: Hosyond 4.0" ESP32-32E display (LCDWiki E32R40T).
+# Hardware only; knows nothing about media players. Pair it with one touch-*.yaml.
+#
+# Provides ids: board_spi, board_display, board_backlight.
+# Pins per https://www.lcdwiki.com/4.0inch_ESP32-32E_Display
+
+substitutions:
+  # Native panel is 320x480 portrait. Swapping axes in the panel's own
+  # hardware gives 480x320 landscape. (Not `rotation:`: LVGL would rotate in
+  # software, which costs a second frame buffer we don't have RAM for.)
+  # If the picture is mirrored or upside down, flip these.
+  board_mirror_x: "true"
+  board_mirror_y: "false"
+  # Flip these if colors look wrong on your unit.
+  board_color_order: bgr
+  board_invert_colors: "false"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+spi:
+  - id: board_spi
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+
+display:
+  - platform: mipi_spi
+    id: board_display
+    model: ST7796
+    spi_id: board_spi
+    cs_pin: GPIO15
+    dc_pin: GPIO2
+    dimensions:
+      width: 480
+      height: 320
+    # RST is wired to EN on this board.
+    color_order: ${board_color_order}
+    invert_colors: ${board_invert_colors}
+    transform:
+      swap_xy: true
+      mirror_x: ${board_mirror_x}
+      mirror_y: ${board_mirror_y}
+    # LVGL drives all drawing.
+    update_interval: never
+    auto_clear_enabled: false
+
+output:
+  - platform: ledc
+    id: board_backlight_pwm
+    pin: GPIO27
+
+light:
+  - platform: monochromatic
+    id: board_backlight
+    name: Backlight
+    entity_category: config
+    output: board_backlight_pwm
+    restore_mode: ALWAYS_ON
