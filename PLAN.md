@@ -1,6 +1,13 @@
 # Plan: ESPHome Media Console for the Hosyond 4" CYD
 
-Status: **implemented (v1), compiles; untested on hardware.** Deviations: display orientation uses the panel `transform` (LVGL rejects display `rotation`); `streaming_jpeg_image` not built; package order puts `local` last so its substitutions override defaults.
+Status: **implemented (v1), compiles; untested on hardware.** Deviations: display orientation uses the panel `transform` (LVGL rejects display `rotation`); `streaming_jpeg_image` not built.
+
+> **Layout changed since this plan:** the repo now follows
+> [esphome-ai-coding-rules](https://github.com/romkey/esphome-ai-coding-rules/blob/main/RULES.md).
+> The package is `packages/media-console.yaml` (substitutions prefixed
+> `media_console_`), board and pins live in `examples/`, and secrets come from
+> `examples/secrets.yaml`. Paths and tooling below (`src/`, `local.yaml`,
+> `docker-compose.yml`, `ci.yml`/`lint.yml`) describe the original layout.
 
 ## 1. Goal
 

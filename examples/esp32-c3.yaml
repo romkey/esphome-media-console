@@ -1,0 +1,87 @@
+# Example: the media console on an ESP32-C3 DevKitM-1 (RISC-V) wired to an
+# SPI ST7796 480x320 panel with an FT6336 (FT63x6) capacitive touch
+# controller on I2C. Proves the package builds on RISC-V; nothing in it
+# depends on the Hosyond board.
+#
+# Board and pin choices live here, never in packages/.
+# Board: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c3/esp32-c3-devkitm-1/user_guide.html
+#
+# Pins avoid the C3's strapping pins (GPIO2, 8, 9), flash pins (GPIO12-17),
+# USB (GPIO18, 19) and UART0 (GPIO20, 21). The C3 has no PSRAM and less RAM
+# than the ESP32: compiles, but not tried on hardware.
+
+substitutions:
+  name: media-console-esp32-c3
+  friendly_name: Media Console ESP32-C3
+  comment: Media console on an ESP32-C3 with an SPI ST7796 panel
+  media_console_media_player: media_player.living_room
+  media_console_ha_base_url: http://homeassistant.local:8123
+  media_console_backlight_id: backlight
+  media_console_accent_color: "0x81C784"
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+  flash_size: 4MB  # 4 MB flash in the module, per the board docs above
+
+# Its Micro-USB port goes through a USB-to-UART bridge to UART0, but ESPHome
+# logs to the C3's built-in USB by default; without this, logs and Improv
+# serial never reach the port.
+logger:
+  hardware_uart: UART0
+
+packages:
+  base: !include common/base.yaml
+  # Lists what answers on the touch controller's I2C bus, for wiring checks.
+  i2c_scan: github://romkey/esphome-lib/lib/i2c-scan.yml@v0.2.0
+  media_console: !include ../packages/media-console.yaml
+
+# The panel only receives, so no MISO.
+spi:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+
+i2c:
+  id: i2c0
+  sda: GPIO1
+  scl: GPIO0
+
+display:
+  - platform: mipi_spi
+    id: panel
+    model: ST7796
+    cs_pin: GPIO10
+    dc_pin: GPIO5
+    # Tie the panel's RST to 3.3V or the C3's EN.
+    dimensions:
+      width: 480
+      height: 320
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+    update_interval: never
+    auto_clear_enabled: false
+
+touchscreen:
+  - platform: ft63x6
+    id: touch
+    display: panel
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+
+output:
+  - platform: ledc
+    id: backlight_pwm
+    pin: GPIO4
+
+light:
+  - platform: monochromatic
+    id: backlight
+    name: Backlight
+    entity_category: config
+    output: backlight_pwm
+    restore_mode: ALWAYS_ON

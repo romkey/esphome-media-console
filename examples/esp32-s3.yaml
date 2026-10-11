@@ -1,0 +1,86 @@
+# Example: the media console on an ESP32-S3 DevKitC-1 (Xtensa LX7) wired to
+# an SPI ST7796 480x320 panel with an FT6336 (FT63x6) capacitive touch
+# controller on I2C. Proves the package builds on the S3; nothing in it
+# depends on the Hosyond board.
+#
+# Board and pin choices live here, never in packages/.
+# Board: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html
+#
+# Pins avoid the S3's strapping pins (GPIO0, 3, 45, 46), flash and PSRAM
+# pins (GPIO26-37), USB (GPIO19, 20) and UART0 (GPIO43, 44). Compiles; not
+# tried on hardware.
+
+substitutions:
+  name: media-console-esp32-s3
+  friendly_name: Media Console ESP32-S3
+  comment: Media console on an ESP32-S3 with an SPI ST7796 panel
+  media_console_media_player: media_player.living_room
+  media_console_ha_base_url: http://homeassistant.local:8123
+  media_console_backlight_id: backlight
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+  flash_size: 8MB  # 8 MB flash, per the board docs above
+
+# Logs and Improv serial on the port labelled "UART" (the USB-to-UART
+# bridge). ESPHome defaults to the S3's built-in USB, the other port.
+logger:
+  hardware_uart: UART0
+
+packages:
+  base: !include common/base.yaml
+  # Lists what answers on the touch controller's I2C bus, for wiring checks.
+  i2c_scan: github://romkey/esphome-lib/lib/i2c-scan.yml@v0.2.0
+  media_console: !include ../packages/media-console.yaml
+
+spi:
+  clk_pin: GPIO12
+  mosi_pin: GPIO11
+  miso_pin: GPIO13
+
+i2c:
+  id: i2c0
+  sda: GPIO5
+  scl: GPIO6
+
+display:
+  - platform: mipi_spi
+    id: panel
+    model: ST7796
+    cs_pin: GPIO10
+    dc_pin: GPIO9
+    reset_pin: GPIO8
+    dimensions:
+      width: 480
+      height: 320
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+    update_interval: never
+    auto_clear_enabled: false
+
+touchscreen:
+  - platform: ft63x6
+    id: touch
+    display: panel
+    interrupt_pin: GPIO4
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+
+output:
+  - platform: ledc
+    id: backlight_pwm
+    pin: GPIO7
+
+light:
+  - platform: monochromatic
+    id: backlight
+    name: Backlight
+    entity_category: config
+    output: backlight_pwm
+    restore_mode: ALWAYS_ON

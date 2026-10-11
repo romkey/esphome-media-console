@@ -1,0 +1,115 @@
+# The media console on the Hosyond 4.0" ESP32-32E display, resistive touch
+# variant (LCDWiki E32R40T): ESP32-WROOM-32E, ST7796 480x320 panel, XPT2046
+# touch, no PSRAM. This is the device the project is built for.
+#
+# Board and pin choices live here, never in packages/.
+# Board: https://www.lcdwiki.com/4.0inch_ESP32-32E_Display
+#
+# For your own device, copy this file to examples/local-<something>.yaml
+# (gitignored) and set media_console_media_player and
+# media_console_ha_base_url.
+
+substitutions:
+  name: media-console
+  friendly_name: Media Console
+  comment: Media console on a Hosyond 4" ESP32-32E display (resistive touch)
+
+  # The Home Assistant media player to show and control.
+  media_console_media_player: media_player.living_room
+  # Where the device fetches album art from. Plain http on your LAN is best:
+  # the board has no PSRAM, so TLS is expensive.
+  media_console_ha_base_url: http://homeassistant.local:8123
+  media_console_backlight_id: board_backlight
+
+  # The panel is 320x480 portrait. Swapping axes in the panel's own hardware
+  # gives 480x320 landscape. (Not `rotation:`: LVGL would rotate in software,
+  # which costs a second frame buffer there's no RAM for.) If the picture is
+  # mirrored or upside down, flip these and match the touch transform below.
+  board_mirror_x: "true"
+  board_mirror_y: "false"
+  # Flip these if colors look wrong on your unit.
+  board_color_order: bgr
+  board_invert_colors: "false"
+
+  # Raw ADC range of the touch panel. Tune with the logger output if touches
+  # land in the wrong place (see README, "Touch calibration").
+  touch_x_min: "300"
+  touch_x_max: "3800"
+  touch_y_min: "300"
+  touch_y_max: "3800"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+  flash_size: 4MB  # "4MB external QSPI Flash", per the board docs above
+
+# The board's USB port goes through a USB-to-UART bridge on UART0, ESPHome's
+# default on the original ESP32, so logs and Improv serial reach it as is.
+
+packages:
+  base: !include common/base.yaml
+  media_console: !include ../packages/media-console.yaml
+
+# Pins per the board docs above. GPIO2, 12 and 15 are strapping pins, but the
+# board wires them to the LCD and its SPI bus; nothing to choose here.
+spi:
+  - id: board_spi
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+
+display:
+  - platform: mipi_spi
+    id: board_display
+    model: ST7796
+    spi_id: board_spi
+    cs_pin: GPIO15
+    dc_pin: GPIO2
+    # RST is wired to EN on this board.
+    dimensions:
+      width: 480
+      height: 320
+    color_order: ${board_color_order}
+    invert_colors: ${board_invert_colors}
+    transform:
+      swap_xy: true
+      mirror_x: ${board_mirror_x}
+      mirror_y: ${board_mirror_y}
+    # LVGL drives all drawing.
+    update_interval: never
+    auto_clear_enabled: false
+
+# XPT2046 on the LCD's SPI bus.
+touchscreen:
+  - platform: xpt2046
+    id: board_touch
+    spi_id: board_spi
+    cs_pin: GPIO33
+    interrupt_pin: GPIO36
+    update_interval: 50ms
+    threshold: 400
+    calibration:
+      x_min: ${touch_x_min}
+      x_max: ${touch_x_max}
+      y_min: ${touch_y_min}
+      y_max: ${touch_y_max}
+    # Maps the panel's native portrait coordinates onto the rotated display.
+    transform:
+      swap_xy: true
+      mirror_x: false
+      mirror_y: true
+
+# Backlight on GPIO27 (high = on), PWM for dimming.
+output:
+  - platform: ledc
+    id: board_backlight_pwm
+    pin: GPIO27
+
+light:
+  - platform: monochromatic
+    id: board_backlight
+    name: Backlight
+    entity_category: config
+    output: board_backlight_pwm
+    restore_mode: ALWAYS_ON
