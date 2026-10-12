@@ -535,6 +535,9 @@ lvgl:
         - obj:
             id: mc_content
             hidden: true
+            # The theme gives plain objects dark text; set it so the track
+            # labels inside inherit the light page color.
+            text_color: 0xE6EAEE
             x: 0
             y: 0
             width: 100%
