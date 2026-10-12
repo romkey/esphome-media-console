@@ -47,7 +47,7 @@ Set in [`examples/hosyond-4in-resistive.yaml`](../examples/hosyond-4in-resistive
 
 | Substitution | Default | Meaning |
 |--------------|---------|---------|
-| `board_mirror_x`, `board_mirror_y` | `true`, `false` | Panel mirroring; flip if the picture is mirrored or upside down |
+| `board_mirror_x`, `board_mirror_y` | `false`, `false` | Panel mirroring; flip if the picture is mirrored or upside down |
 | `board_color_order` | `bgr` | `rgb` if red and blue are swapped |
 | `board_invert_colors` | `false` | `true` if colors look inverted |
 | `touch_x_min`, `touch_x_max`, `touch_y_min`, `touch_y_max` | `300`, `3800`, `300`, `3800` | XPT2046 raw calibration range |
