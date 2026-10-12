@@ -25,7 +25,7 @@ substitutions:
   # gives 480x320 landscape. (Not `rotation:`: LVGL would rotate in software,
   # which costs a second frame buffer there's no RAM for.) If the picture is
   # mirrored or upside down, flip these and match the touch transform below.
-  board_mirror_x: "true"
+  board_mirror_x: "false"
   board_mirror_y: "false"
   # Flip these if colors look wrong on your unit.
   board_color_order: bgr
@@ -97,7 +97,7 @@ touchscreen:
     # Maps the panel's native portrait coordinates onto the rotated display.
     transform:
       swap_xy: true
-      mirror_x: false
+      mirror_x: true
       mirror_y: true
 
 # Backlight on GPIO27 (high = on), PWM for dimming.
