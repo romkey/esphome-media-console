@@ -1,35 +1,36 @@
-# ESPHome media console: album art, track info, progress, transport and volume
+# Media console: album art, track info, progress, transport and volume
 # controls for a Home Assistant media_player, drawn with LVGL.
 #
-# This package knows nothing about any particular board. The host config must
-# provide:
-#   - one `display` and one `touchscreen` (LVGL picks them up automatically)
+# This is a user interface package: it names no board, framework or GPIO.
+# The including config must provide:
+#   - one `display` and one `touchscreen` (LVGL picks them up automatically);
+#     the layout is designed for 480x320 landscape
 #   - `wifi` and `api`
-#   - a dimmable `light` for the backlight (pass its id as `backlight_id`)
+#   - a dimmable `light` for the backlight, whose id goes in
+#     media_console_backlight_id
 #
-# Include it from a local checkout:
+# It also defines `http_request`, `online_image`, `font`, `lvgl`, `globals`,
+# `script` and `interval`, and its internal ids start with `mc_`. It drives a
+# single LVGL page, so include it only once per device.
 #
+#   substitutions:
+#     media_console_media_player: media_player.living_room
+#     media_console_ha_base_url: http://homeassistant.local:8123
+#     media_console_backlight_id: backlight
 #   packages:
-#     media_console: !include
-#       file: media_console/media_console.yaml
-#       vars:
-#         media_player: media_player.living_room
-#         ha_base_url: http://homeassistant.local:8123
-#         backlight_id: my_backlight
+#     media_console: github://romkey/esphome-media-console/packages/media-console.yaml@v0.1.0
 #
-# or straight from GitHub:
-#
-#   packages:
-#     media_console:
-#       url: https://github.com/romkey/esphome-media-console
-#       ref: main
-#       files: [src/media_console/media_console.yaml]
-#       vars: { ... }
-#
-# Layout is tuned for a 480x320 landscape screen.
-#
-# Required vars: media_player, ha_base_url, backlight_id
-# Optional vars: see the `substitutions` block below.
+# Substitutions:
+#   media_console_media_player         entity to show and control (required)
+#   media_console_ha_base_url          Home Assistant URL, prefixed to relative
+#                                      album art paths (required)
+#   media_console_backlight_id         id of a dimmable light (required)
+#   media_console_art_size             album art edge in px (default 180)
+#   media_console_idle_dim_timeout     dim after this long untouched (default 60s)
+#   media_console_idle_dim_brightness  brightness while dimmed (default 15%)
+#   media_console_accent_color         UI accent color (default 0x4FC3F7)
+#   media_console_art_status_name      diagnostic entity name
+#                                      (default "Album Art Status")
 #
 # In Home Assistant, enable "Allow the device to perform Home Assistant
 # actions" for this device, or the buttons will do nothing.
@@ -37,12 +38,13 @@
 substitutions:
   # Album art edge in pixels. The art is decoded into one RGB565 buffer of
   # art_size x art_size x 2 bytes, so mind the RAM on boards without PSRAM.
-  art_size: "180"
+  media_console_art_size: "180"
   # Dim the backlight after this long without a touch, and how far to dim it.
-  idle_dim_timeout: 60s
-  idle_dim_brightness: "15%"
+  media_console_idle_dim_timeout: 60s
+  media_console_idle_dim_brightness: "15%"
   # UI accent color (progress, volume, active toggles). Not red on purpose.
-  accent_color: "0x4FC3F7"
+  media_console_accent_color: "0x4FC3F7"
+  media_console_art_status_name: "Album Art Status"
 
 # --------------------------------------------------------------------------
 # State and attributes mirrored from Home Assistant
@@ -51,7 +53,7 @@ substitutions:
 text_sensor:
   - platform: homeassistant
     id: mc_state
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     internal: true
     on_value:
       then:
@@ -69,7 +71,7 @@ text_sensor:
         - script.execute: mc_refresh_progress
   - platform: homeassistant
     id: mc_title
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: media_title
     internal: true
     on_value:
@@ -79,7 +81,7 @@ text_sensor:
             text: !lambda 'return x;'
   - platform: homeassistant
     id: mc_artist
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: media_artist
     internal: true
     on_value:
@@ -89,7 +91,7 @@ text_sensor:
             text: !lambda 'return x;'
   - platform: homeassistant
     id: mc_album
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: media_album_name
     internal: true
     on_value:
@@ -99,7 +101,7 @@ text_sensor:
             text: !lambda 'return x;'
   - platform: homeassistant
     id: mc_player_name
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: friendly_name
     internal: true
     on_value:
@@ -109,7 +111,7 @@ text_sensor:
             text: !lambda 'return x;'
   - platform: homeassistant
     id: mc_repeat
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: repeat
     internal: true
     on_value:
@@ -118,7 +120,7 @@ text_sensor:
   # Album art source URLs. Either may change when the track does.
   - platform: homeassistant
     id: mc_picture
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: entity_picture
     internal: true
     on_value:
@@ -126,7 +128,7 @@ text_sensor:
         - script.execute: mc_update_art
   - platform: homeassistant
     id: mc_picture_local
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: entity_picture_local
     internal: true
     on_value:
@@ -136,13 +138,13 @@ text_sensor:
   # serial cable.
   - platform: template
     id: mc_art_status
-    name: Album Art Status
+    name: "${media_console_art_status_name}"
     entity_category: diagnostic
 
 sensor:
   - platform: homeassistant
     id: mc_duration
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: media_duration
     internal: true
     on_value:
@@ -151,7 +153,7 @@ sensor:
         - script.execute: mc_refresh_progress
   - platform: homeassistant
     id: mc_position_sensor
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: media_position
     internal: true
     on_value:
@@ -162,7 +164,7 @@ sensor:
         - script.execute: mc_refresh_progress
   - platform: homeassistant
     id: mc_volume
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: volume_level
     internal: true
     on_value:
@@ -185,7 +187,7 @@ sensor:
 binary_sensor:
   - platform: homeassistant
     id: mc_muted
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: is_volume_muted
     internal: true
     on_state:
@@ -193,7 +195,7 @@ binary_sensor:
         - script.execute: mc_refresh_toggles
   - platform: homeassistant
     id: mc_shuffle
-    entity_id: ${media_player}
+    entity_id: ${media_console_media_player}
     attribute: shuffle
     internal: true
     on_state:
@@ -244,10 +246,10 @@ http_request:
 image:
   - platform: online_image
     id: mc_album_art
-    url: ${ha_base_url}
+    url: ${media_console_ha_base_url}
     format: JPEG
     type: RGB565
-    resize: ${art_size}x${art_size}
+    resize: ${media_console_art_size}x${media_console_art_size}
     update_interval: never
     on_download_finished:
       then:
@@ -278,7 +280,7 @@ script:
     mode: restart
     then:
       - lambda: |-
-          std::string base = "${ha_base_url}";
+          std::string base = "${media_console_ha_base_url}";
           std::string remote = id(mc_picture).state;
           std::string local = id(mc_picture_local).state;
           std::string url;
@@ -313,7 +315,7 @@ script:
               size_t e = url.find('&', p);
               url.replace(p, e == std::string::npos ? std::string::npos : e - p, key + "=" + val);
             };
-            set_param("size", "${art_size}");
+            set_param("size", "${media_console_art_size}");
             set_param("fmt", "jpeg");
           }
           id(mc_art_url_wanted) = url;
@@ -377,10 +379,13 @@ script:
     then:
       - lvgl.widget.update:
           id: mc_lbl_shuffle
-          text_color: !lambda 'return id(mc_shuffle).state ? lv_color_hex(${accent_color}) : lv_color_hex(0x8A949E);'
+          text_color: !lambda |-
+            return id(mc_shuffle).state ? lv_color_hex(${media_console_accent_color}) : lv_color_hex(0x8A949E);
       - lvgl.widget.update:
           id: mc_lbl_repeat
-          text_color: !lambda 'return id(mc_repeat).state != "off" && !id(mc_repeat).state.empty() ? lv_color_hex(${accent_color}) : lv_color_hex(0x8A949E);'
+          text_color: !lambda |-
+            bool on = id(mc_repeat).state != "off" && !id(mc_repeat).state.empty();
+            return on ? lv_color_hex(${media_console_accent_color}) : lv_color_hex(0x8A949E);
       - lvgl.label.update:
           id: mc_lbl_repeat
           text: !lambda 'return std::string(id(mc_repeat).state == "one" ? LV_SYMBOL_LOOP " 1" : LV_SYMBOL_LOOP);'
@@ -394,32 +399,32 @@ script:
       - homeassistant.action:
           action: media_player.media_play_pause
           data:
-            entity_id: ${media_player}
+            entity_id: ${media_console_media_player}
   - id: mc_next
     then:
       - homeassistant.action:
           action: media_player.media_next_track
           data:
-            entity_id: ${media_player}
+            entity_id: ${media_console_media_player}
   - id: mc_previous
     then:
       - homeassistant.action:
           action: media_player.media_previous_track
           data:
-            entity_id: ${media_player}
+            entity_id: ${media_console_media_player}
   - id: mc_toggle_shuffle
     then:
       - homeassistant.action:
           action: media_player.shuffle_set
           data:
-            entity_id: ${media_player}
+            entity_id: ${media_console_media_player}
             shuffle: !lambda 'return id(mc_shuffle).state ? "false" : "true";'
   - id: mc_cycle_repeat
     then:
       - homeassistant.action:
           action: media_player.repeat_set
           data:
-            entity_id: ${media_player}
+            entity_id: ${media_console_media_player}
             repeat: !lambda |-
               const std::string &r = id(mc_repeat).state;
               if (r == "off" || r.empty()) return "all";
@@ -430,14 +435,14 @@ script:
       - homeassistant.action:
           action: media_player.volume_mute
           data:
-            entity_id: ${media_player}
+            entity_id: ${media_console_media_player}
             is_volume_muted: !lambda 'return id(mc_muted).state ? "false" : "true";'
   - id: mc_set_volume
     then:
       - homeassistant.action:
           action: media_player.volume_set
           data:
-            entity_id: ${media_player}
+            entity_id: ${media_console_media_player}
             volume_level: !lambda 'return to_string(lv_slider_get_value(id(mc_slider_volume)) / 100.0f);'
 
   # Dim after a period of inactivity; the first touch afterwards only wakes the
@@ -445,15 +450,15 @@ script:
   - id: mc_dim
     then:
       - light.turn_on:
-          id: ${backlight_id}
-          brightness: ${idle_dim_brightness}
+          id: ${media_console_backlight_id}
+          brightness: ${media_console_idle_dim_brightness}
           transition_length: 1s
       - lvgl.widget.show: mc_wake_overlay
   - id: mc_wake
     then:
       - lvgl.widget.hide: mc_wake_overlay
       - light.turn_on:
-          id: ${backlight_id}
+          id: ${media_console_backlight_id}
           brightness: 100%
           transition_length: 200ms
 
@@ -487,7 +492,7 @@ font:
 lvgl:
   buffer_size: 25%
   on_idle:
-    - timeout: ${idle_dim_timeout}
+    - timeout: ${media_console_idle_dim_timeout}
       then:
         - script.execute: mc_dim
   top_layer:
@@ -543,8 +548,8 @@ lvgl:
               - obj:
                   x: 12
                   y: 32
-                  width: ${art_size}
-                  height: ${art_size}
+                  width: ${media_console_art_size}
+                  height: ${media_console_art_size}
                   bg_color: 0x1B222A
                   border_width: 0
                   radius: 6
@@ -600,7 +605,7 @@ lvgl:
                   value: 0
                   bg_color: 0x2A323B
                   indicator:
-                    bg_color: ${accent_color}
+                    bg_color: ${media_console_accent_color}
               - label:
                   id: mc_lbl_time
                   x: 204
@@ -650,7 +655,7 @@ lvgl:
                   width: 56
                   height: 48
                   radius: 24
-                  bg_color: ${accent_color}
+                  bg_color: ${media_console_accent_color}
                   shadow_width: 0
                   on_click:
                     then:
@@ -723,7 +728,7 @@ lvgl:
                   value: 0
                   bg_color: 0x2A323B
                   indicator:
-                    bg_color: ${accent_color}
+                    bg_color: ${media_console_accent_color}
                   knob:
                     bg_color: 0xE6EAEE
                     pad_all: 8

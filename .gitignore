@@ -1,11 +1,26 @@
-# Per-install settings and secrets
-src/local*
-src/secrets.yaml
+# ESPHome build output
+.esphome/
 
-# ESPHome / PlatformIO build output
-src/.esphome/
-**/.pioenvs/
-**/.piolibdeps/
-build/
+# Secrets and personal device configs (either extension)
+**/secrets.yaml
+**/secrets.yml
+**/local*.yaml
+**/local*.yml
 
+# Python
+__pycache__/
+*.pyc
+
+# macOS
 .DS_Store
+
+# Editors
+*~
+.vscode/
+.idea/
+
+# Firmware copied out of Docker by the old compose file
+/build/
+
+# Factory images copied out of the build volume for web.esphome.io
+/firmware*.bin
