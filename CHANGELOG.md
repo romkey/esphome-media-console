@@ -18,3 +18,6 @@ All notable changes to this project are documented here. The format follows
   diagnostics.
 - Docker Compose services, pre-commit lint, CI with cached builds and a
   weekly ESPHome beta build, release workflow, Renovate.
+- Examples load their shared config and the package from GitHub, so a single
+  example file builds on its own in any ESPHome install; `*-local.yaml`
+  copies build from the checkout instead, and CI builds those.

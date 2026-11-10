@@ -3,6 +3,11 @@
 # controller on I2C. Proves the package builds on the S3; nothing in it
 # depends on the Hosyond board.
 #
+# Self-contained: the shared settings and the package come from GitHub (main
+# until the first release), so copy just this file into an ESPHome config
+# directory next to a secrets.yaml (see secrets.yaml.example) and build it.
+# esp32-s3-local.yaml is the same config built from this checkout's files.
+#
 # Board and pin choices live here, never in packages/.
 # Board: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html
 #
@@ -30,10 +35,10 @@ logger:
   hardware_uart: UART0
 
 packages:
-  base: !include common/base.yaml
+  base: github://romkey/esphome-media-console/examples/common/base.yaml@main
   # Lists what answers on the touch controller's I2C bus, for wiring checks.
   i2c_scan: github://romkey/esphome-lib/lib/i2c-scan.yml@v0.2.0
-  media_console: !include ../packages/media-console.yaml
+  media_console: github://romkey/esphome-media-console/packages/media-console.yaml@main
 
 spi:
   clk_pin: GPIO12

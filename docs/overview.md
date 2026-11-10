@@ -15,6 +15,11 @@ examples use an SPI ST7796 + FT6336 touch on I2C (`i2c0`, address 0x38).
 - `examples/esp32-c3.yaml`, `examples/esp32-s3.yaml`: generic boards, CI
   proof that the package is board-agnostic.
 - `examples/common/base.yaml`: shared project, network and recovery config.
+- Each example comes twice: `foo.yaml` pulls `common/base.yaml` and the
+  package from GitHub (`@main`), so it builds as a single copied file;
+  `foo-local.yaml` is identical but uses `!include` on this checkout. Keep
+  each pair in sync. CI builds only the `-local` ones
+  (`scripts/list-configs.sh`).
 - `PLAN.md`: original design and open hardware questions.
 
 ## Required by packages

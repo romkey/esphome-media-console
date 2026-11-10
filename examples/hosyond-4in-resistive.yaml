@@ -2,12 +2,17 @@
 # variant (LCDWiki E32R40T): ESP32-WROOM-32E, ST7796 480x320 panel, XPT2046
 # touch, no PSRAM. This is the device the project is built for.
 #
+# Self-contained: the shared settings and the package come from GitHub (main
+# until the first release), so copy just this file into an ESPHome config
+# directory next to a secrets.yaml (see secrets.yaml.example) and build it.
+# hosyond-4in-resistive-local.yaml is the same config built from this
+# checkout's files.
+#
 # Board and pin choices live here, never in packages/.
 # Board: https://www.lcdwiki.com/4.0inch_ESP32-32E_Display
 #
-# For your own device, copy this file to examples/local-<something>.yaml
-# (gitignored) and set media_console_media_player and
-# media_console_ha_base_url.
+# For your own device, copy this file and set name,
+# media_console_media_player and media_console_ha_base_url.
 
 substitutions:
   name: media-console
@@ -48,8 +53,8 @@ esp32:
 # default on the original ESP32, so logs and Improv serial reach it as is.
 
 packages:
-  base: !include common/base.yaml
-  media_console: !include ../packages/media-console.yaml
+  base: github://romkey/esphome-media-console/examples/common/base.yaml@main
+  media_console: github://romkey/esphome-media-console/packages/media-console.yaml@main
 
 # Pins per the board docs above. GPIO2, 12 and 15 are strapping pins, but the
 # board wires them to the LCD and its SPI bus; nothing to choose here.

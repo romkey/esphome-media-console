@@ -43,7 +43,7 @@ packages:
 ## Hosyond board substitutions
 
 Set in [`examples/hosyond-4in-resistive.yaml`](../examples/hosyond-4in-resistive.yaml)
-(or your `examples/local-*.yaml` copy of it):
+(or `hosyond-4in-resistive-local.yaml`, or your copy of either):
 
 | Substitution | Default | Meaning |
 |--------------|---------|---------|
