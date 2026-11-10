@@ -10,7 +10,7 @@
 #     media_console_backlight_id
 #
 # It also defines `http_request`, `online_image`, `font`, `lvgl`, `globals`,
-# `script` and `interval`, and its internal ids start with `mc_`. It drives a
+# `script`, `interval` and a Home Assistant `time` source, and its internal ids start with `mc_`. It drives a
 # single LVGL page, so include it only once per device.
 #
 #   substitutions:
@@ -31,6 +31,10 @@
 #   media_console_accent_color         UI accent color (default 0x4FC3F7)
 #   media_console_art_status_name      diagnostic entity name
 #                                      (default "Album Art Status")
+#   media_console_player_name          name in the header (default: the
+#                                      player's friendly name from HA)
+#   media_console_time_format          strftime format of the header clock
+#                                      (default "%H:%M")
 #
 # In Home Assistant, enable "Allow the device to perform Home Assistant
 # actions" for this device, or the buttons will do nothing.
@@ -45,6 +49,13 @@ substitutions:
   # UI accent color (progress, volume, active toggles). Not red on purpose.
   media_console_accent_color: "0x4FC3F7"
   media_console_art_status_name: "Album Art Status"
+  # Header text. Empty means the player's friendly name from Home Assistant.
+  media_console_player_name: ""
+  # Header clock, strftime format. "%I:%M %p" for 12-hour.
+  media_console_time_format: "%H:%M"
+  # Header status icon colors.
+  media_console_ok_color: "0x66BB6A"
+  media_console_error_color: "0xEF5350"
 
 # --------------------------------------------------------------------------
 # State and attributes mirrored from Home Assistant
@@ -106,9 +117,14 @@ text_sensor:
     internal: true
     on_value:
       then:
-        - lvgl.label.update:
-            id: mc_lbl_player
-            text: !lambda 'return x;'
+        # A media_console_player_name substitution wins over HA's name.
+        - if:
+            condition:
+              lambda: 'return std::string("${media_console_player_name}").empty();'
+            then:
+              - lvgl.label.update:
+                  id: mc_lbl_player
+                  text: !lambda 'return x;'
   - platform: homeassistant
     id: mc_repeat
     entity_id: ${media_console_media_player}
@@ -228,6 +244,14 @@ globals:
   - id: mc_art_url_loaded
     type: std::string
     initial_value: '""'
+  - id: mc_conn_state      # bit 0: Wi-Fi up, bit 1: HA API up; -1 = unknown
+    type: int
+    initial_value: "-1"
+
+# Header clock. Home Assistant also supplies the time zone.
+time:
+  - platform: homeassistant
+    id: mc_time
 
 # --------------------------------------------------------------------------
 # Album art
@@ -337,18 +361,24 @@ script:
                       id: mc_album_art
                       url: !lambda 'return id(mc_art_url_wanted);'
 
-  # Show the player UI while something is playing or paused, else a message.
+  # Show the player UI while something is playing or paused and Home
+  # Assistant is reachable, else a message saying why not.
   - id: mc_refresh_state
     then:
-      - if:
-          condition:
-            lambda: 'return id(mc_active);'
-          then:
-            - lvgl.widget.show: mc_content
-            - lvgl.widget.hide: mc_lbl_idle
-          else:
-            - lvgl.widget.hide: mc_content
-            - lvgl.widget.show: mc_lbl_idle
+      - lambda: |-
+          bool wifi_ok = wifi::global_wifi_component->is_connected();
+          bool ha_ok = wifi_ok && api::global_api_server->is_connected();
+          const char *msg = !wifi_ok ? "WiFi Disconnected"
+                            : !ha_ok ? "Home Assistant Disconnected"
+                                     : "Nothing playing";
+          lv_label_set_text(id(mc_lbl_idle), msg);
+          if (ha_ok && id(mc_active)) {
+            lv_obj_clear_flag(id(mc_content), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(mc_lbl_idle), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(mc_content), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(id(mc_lbl_idle), LV_OBJ_FLAG_HIDDEN);
+          }
       - lvgl.label.update:
           id: mc_lbl_play
           text: !lambda 'return std::string(id(mc_playing) ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);'
@@ -462,9 +492,33 @@ script:
           brightness: 100%
           transition_length: 200ms
 
+  # Header: clock, and Wi-Fi / Home Assistant status icons. Redraws the
+  # center when either connection changes.
+  - id: mc_refresh_header
+    then:
+      - lambda: |-
+          bool wifi_ok = wifi::global_wifi_component->is_connected();
+          bool ha_ok = wifi_ok && api::global_api_server->is_connected();
+          int conn = (wifi_ok ? 1 : 0) | (ha_ok ? 2 : 0);
+          if (conn != id(mc_conn_state)) {
+            id(mc_conn_state) = conn;
+            lv_label_set_text(id(mc_lbl_wifi), wifi_ok ? "\U000F05A9" : "\U000F05AA");
+            lv_obj_set_style_text_color(id(mc_lbl_wifi),
+                lv_color_hex(wifi_ok ? ${media_console_ok_color} : ${media_console_error_color}), 0);
+            lv_obj_set_style_text_color(id(mc_lbl_ha),
+                lv_color_hex(ha_ok ? ${media_console_ok_color} : ${media_console_error_color}), 0);
+            if (ha_ok) lv_obj_add_flag(id(mc_line_ha)->obj, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_clear_flag(id(mc_line_ha)->obj, LV_OBJ_FLAG_HIDDEN);
+            id(mc_refresh_state).execute();
+          }
+          auto now = id(mc_time).now();
+          std::string clock = now.is_valid() ? now.strftime("${media_console_time_format}") : "";
+          lv_label_set_text(id(mc_lbl_clock), clock.c_str());
+
 interval:
   - interval: 1s
     then:
+      - script.execute: mc_refresh_header
       - if:
           condition:
             lambda: 'return id(mc_playing);'
@@ -488,6 +542,18 @@ font:
     id: mc_font_large
     size: 24
     glyphsets: [GF_Latin_Kernel]
+  # Material Design Icons, just the header's status glyphs.
+  - file:
+      type: web
+      # yamllint disable-line rule:line-length
+      url: https://raw.githubusercontent.com/Templarian/MaterialDesign-Webfont/v7.4.47/fonts/materialdesignicons-webfont.ttf
+    id: mc_font_icons
+    size: 20
+    bpp: 4
+    glyphs:
+      - "\U000F05A9"  # wifi
+      - "\U000F05AA"  # wifi-off
+      - "\U000F07D0"  # home-assistant
 
 lvgl:
   buffer_size: 25%
@@ -513,16 +579,57 @@ lvgl:
       text_font: mc_font_medium
       text_color: 0xE6EAEE
       widgets:
-        # Top bar: player name
+        # Header: player name on the left; clock, Wi-Fi and Home Assistant
+        # status on the right. mc_refresh_header keeps it current.
         - label:
             id: mc_lbl_player
             x: 12
             y: 6
-            width: 456
-            text: ""
+            width: 300
+            text: "${media_console_player_name}"
             text_font: mc_font_small
             text_color: 0x8A949E
             long_mode: DOT
+        - label:
+            id: mc_lbl_clock
+            align: TOP_RIGHT
+            x: -66
+            y: 6
+            width: 90
+            text: ""
+            text_font: mc_font_small
+            text_color: 0x8A949E
+            text_align: RIGHT
+        - label:
+            id: mc_lbl_wifi
+            align: TOP_RIGHT
+            x: -38
+            y: 3
+            text: "\U000F05AA"
+            text_font: mc_font_icons
+            text_color: ${media_console_error_color}
+        - label:
+            id: mc_lbl_ha
+            align: TOP_RIGHT
+            x: -10
+            y: 3
+            text: "\U000F07D0"
+            text_font: mc_font_icons
+            text_color: ${media_console_error_color}
+        # Strike-through over the Home Assistant icon while disconnected.
+        - line:
+            id: mc_line_ha
+            align: TOP_RIGHT
+            x: -10
+            y: 3
+            width: 20
+            height: 20
+            points:
+              - 2, 2
+              - 18, 18
+            line_width: 2
+            line_color: ${media_console_error_color}
+            line_rounded: true
 
         # Shown instead of the player UI when nothing is playing
         - label:
