@@ -53,8 +53,16 @@ esp32:
 # default on the original ESP32, so logs and Improv serial reach it as is.
 
 packages:
-  base: github://romkey/esphome-media-console/examples/common/base.yaml@main
-  media_console: github://romkey/esphome-media-console/packages/media-console.yaml@main
+  base:
+    url: https://github.com/romkey/esphome-media-console
+    ref: main
+    files: [examples/common/base.yaml]
+    refresh: 0s
+  media_console:
+    url: https://github.com/romkey/esphome-media-console
+    ref: main
+    files: [packages/media-console.yaml]
+    refresh: 0s
 
 # Pins per the board docs above. GPIO2, 12 and 15 are strapping pins, but the
 # board wires them to the LCD and its SPI bus; nothing to choose here.
