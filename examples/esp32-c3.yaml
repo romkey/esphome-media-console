@@ -37,10 +37,22 @@ logger:
   hardware_uart: UART0
 
 packages:
-  base: github://romkey/esphome-media-console/examples/common/base.yaml@main
+  base:
+    url: https://github.com/romkey/esphome-media-console
+    ref: main
+    files: [examples/common/base.yaml]
+    refresh: 0s
   # Lists what answers on the touch controller's I2C bus, for wiring checks.
-  i2c_scan: github://romkey/esphome-lib/lib/i2c-scan.yml@v0.2.0
-  media_console: github://romkey/esphome-media-console/packages/media-console.yaml@main
+  i2c_scan:
+    url: https://github.com/romkey/esphome-lib
+    ref: v0.2.0
+    files: [lib/i2c-scan.yml]
+    refresh: 0s
+  media_console:
+    url: https://github.com/romkey/esphome-media-console
+    ref: main
+    files: [packages/media-console.yaml]
+    refresh: 0s
 
 # The panel only receives, so no MISO.
 spi:

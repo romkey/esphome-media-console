@@ -21,9 +21,21 @@ esphome:
     version: ${project_version}
 
 packages:
-  esp32: github://romkey/esphome-lib/lib/esp32.yml@v0.2.0
-  wifi_diagnostics: github://romkey/esphome-lib/lib/wifi-diagnostics.yml@v0.2.0
-  restart: github://romkey/esphome-lib/lib/restart.yml@v0.2.0
+  esp32:
+    url: https://github.com/romkey/esphome-lib
+    ref: v0.2.0
+    files: [lib/esp32.yml]
+    refresh: 0s
+  wifi_diagnostics:
+    url: https://github.com/romkey/esphome-lib
+    ref: v0.2.0
+    files: [lib/wifi-diagnostics.yml]
+    refresh: 0s
+  restart:
+    url: https://github.com/romkey/esphome-lib
+    ref: v0.2.0
+    files: [lib/restart.yml]
+    refresh: 0s
 
 logger:
 

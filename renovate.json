@@ -29,6 +29,13 @@
     },
     {
       "customType": "regex",
+      "description": "ESPHome remote packages, long form: url: https://github.com/owner/repo + ref: vX.Y.Z",
+      "managerFilePatterns": ["/\\.ya?ml$/"],
+      "matchStrings": ["url: https://github\\.com/(?<depName>[\\w.-]+/[\\w.-]+?)(?:\\.git)?\\s+ref: (?<currentValue>v?\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
       "description": "Python tools run with uvx tool@version",
       "managerFilePatterns": ["/\\.ya?ml$/"],
       "matchStrings": ["uvx (?<depName>[\\w-]+)@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],

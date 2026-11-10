@@ -26,3 +26,8 @@ All notable changes to this project are documented here. The format follows
   Disconnected" instead of "Nothing playing" when a connection is down.
   New substitutions `media_console_player_name`, `media_console_time_format`,
   `media_console_ok_color` and `media_console_error_color`.
+
+### Changed
+
+- Remote packages in the examples use the long form with `refresh: 0s`, so
+  every build fetches the latest `main` instead of a copy cached for a day.
