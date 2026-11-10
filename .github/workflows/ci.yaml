@@ -78,7 +78,7 @@ jobs:
 
       # Native ESPHome via uv installs in seconds; pulling the Docker image
       # takes longer and makes cache directories root-owned.
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: .github/workflows/ci.yaml
@@ -169,7 +169,7 @@ jobs:
         run: |
           if ls tests/test_*.py >/dev/null 2>&1; then echo "present=true" >> "$GITHUB_OUTPUT"; fi
       - if: steps.check.outputs.present == 'true'
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: tests/requirements.txt
@@ -178,7 +178,7 @@ jobs:
           if [ -f tests/requirements.txt ]; then
             uvx --with-requirements tests/requirements.txt pytest@9.1.1 tests
           else
-            uvx pytest@9.1.1 tests
+            uvx pytest@9.2.0 tests
           fi
 
   # The one required status check. Matrix job names change with the config
