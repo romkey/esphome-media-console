@@ -631,11 +631,13 @@ lvgl:
             line_color: ${media_console_error_color}
             line_rounded: true
 
-        # Shown instead of the player UI when nothing is playing
+        # Shown instead of the player UI when nothing is playing or a
+        # connection is down. Starts in the disconnected state to match the
+        # header icons; mc_refresh_state sets the real text.
         - label:
             id: mc_lbl_idle
             align: CENTER
-            text: "Nothing playing"
+            text: "WiFi Disconnected"
             text_font: mc_font_large
             text_color: 0x8A949E
 
