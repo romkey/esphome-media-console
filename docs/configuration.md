@@ -12,7 +12,7 @@ Home Assistant, enable **Allow the device to perform Home Assistant actions**
 for the device.
 
 **Defines:** `http_request`, `online_image`, `font`, `lvgl`, `globals`,
-`script`, `interval`, Home Assistant mirror sensors (all `internal`), and
+`script`, `interval`, a Home Assistant `time` (`mc_time`), Home Assistant mirror sensors (all `internal`), and
 ids starting with `mc_`. A host that already uses LVGL gets the console's
 page (`media_console_page`) merged into its `lvgl: pages:`.
 
@@ -26,6 +26,16 @@ page (`media_console_page`) merged into its `lvgl: pages:`.
 | `media_console_idle_dim_brightness` | `15%` | Brightness while dimmed |
 | `media_console_accent_color` | `0x4FC3F7` | UI accent color (progress, volume, active toggles) |
 | `media_console_art_status_name` | `Album Art Status` | Name of the diagnostic text sensor reporting album art problems |
+| `media_console_player_name` | (empty) | Name in the header; empty uses the player's friendly name from Home Assistant |
+| `media_console_time_format` | `%H:%M` | strftime format of the header clock, e.g. `%I:%M %p` |
+| `media_console_ok_color`, `media_console_error_color` | `0x66BB6A`, `0xEF5350` | Header status icon colors |
+
+The header shows the player name, a clock (from Home Assistant, blank until
+first synced) and Wi-Fi and Home Assistant status icons: green when
+connected, red (Wi-Fi crossed out, the Home Assistant logo struck through)
+when not. Without Wi-Fi the center reads "WiFi Disconnected"; with Wi-Fi but
+no Home Assistant API connection it reads "Home Assistant Disconnected".
+The console needs Home Assistant for everything it shows and does.
 
 The first touch after dimming only wakes the screen. The volume slider sends
 `volume_set` on release and ignores Home Assistant updates while dragged.

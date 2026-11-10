@@ -21,3 +21,8 @@ All notable changes to this project are documented here. The format follows
 - Examples load their shared config and the package from GitHub, so a single
   example file builds on its own in any ESPHome install; `*-local.yaml`
   copies build from the checkout instead, and CI builds those.
+- Header with the player name, a clock and Wi-Fi / Home Assistant status
+  icons; the center says "WiFi Disconnected" or "Home Assistant
+  Disconnected" instead of "Nothing playing" when a connection is down.
+  New substitutions `media_console_player_name`, `media_console_time_format`,
+  `media_console_ok_color` and `media_console_error_color`.
