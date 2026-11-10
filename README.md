@@ -23,8 +23,9 @@ Assistant); Spotify Connect players work too, with caveats (see
 | Path | What it is |
 |------|------------|
 | [`packages/media-console.yaml`](packages/media-console.yaml) | The media console: Home Assistant state, album art, LVGL UI, controls, idle dimming |
-| [`examples/hosyond-4in-resistive.yaml`](examples/hosyond-4in-resistive.yaml) | The Hosyond 4" ESP32-32E (resistive touch): the device this project is for |
+| [`examples/hosyond-4in-resistive.yaml`](examples/hosyond-4in-resistive.yaml) | The Hosyond 4" ESP32-32E (resistive touch): the device this project is for. Pulls everything else from GitHub, so it builds on its own: copy just this file and a `secrets.yaml` into any ESPHome config directory |
 | [`examples/esp32-c3.yaml`](examples/esp32-c3.yaml), [`examples/esp32-s3.yaml`](examples/esp32-s3.yaml) | The console on an ESP32-C3 / ESP32-S3 dev kit with an SPI ST7796 panel and FT6336 touch; prove the package is board-agnostic |
+| `examples/*-local.yaml` | The same examples, built from this checkout's `common/` and `packages/` instead of GitHub; CI builds these |
 | [`examples/common/base.yaml`](examples/common/base.yaml) | Shared: project version, Wi-Fi, encrypted API/OTA, recovery, web server, diagnostics |
 | [`docs/configuration.md`](docs/configuration.md) | Every substitution, with defaults |
 | [`PLAN.md`](PLAN.md) | The original design plan and its open questions |
@@ -97,6 +98,12 @@ You need Docker and a Home Assistant instance.
    ```bash
    cp examples/hosyond-4in-resistive.yaml examples/local-living-room.yaml
    ```
+
+   It loads the shared config and the package from GitHub, so it also works
+   on its own in an existing ESPHome install (such as the Home Assistant
+   add-on): copy just that file there, next to your `secrets.yaml`. To build
+   your own changes to this repo instead, copy
+   `examples/hosyond-4in-resistive-local.yaml`, which uses the local files.
 
    Set `name`, `media_console_media_player` and `media_console_ha_base_url`
    (plain `http://` on your LAN; see [Album art](#album-art)).
