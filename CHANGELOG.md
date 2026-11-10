@@ -31,3 +31,9 @@ All notable changes to this project are documented here. The format follows
 
 - Remote packages in the examples use the long form with `refresh: 0s`, so
   every build fetches the latest `main` instead of a copy cached for a day.
+
+### Fixed
+
+- The center message started as "Nothing playing" while the header icons
+  showed Wi-Fi and Home Assistant disconnected, until the first status
+  refresh a second later. It now starts as "WiFi Disconnected".
