@@ -11,8 +11,11 @@ volume, with idle dimming. Include it once per device.
 Home Assistant, enable **Allow the device to perform Home Assistant actions**
 for the device.
 
+Set `gamma_correct: 1.0` on that light. With the default gamma of 2.8 the
+15% dim level is about 0.5% PWM duty, and the screen looks switched off.
+
 **Defines:** `http_request`, `online_image`, `font`, `lvgl`, `globals`,
-`script`, `interval`, a Home Assistant `time` (`mc_time`), Home Assistant mirror sensors (all `internal`), and
+`script`, `interval`, a `switch` (`mc_idle_dimming`), a Home Assistant `time` (`mc_time`), Home Assistant mirror sensors (all `internal`), and
 ids starting with `mc_`. A host that already uses LVGL gets the console's
 page (`media_console_page`) merged into its `lvgl: pages:`.
 
@@ -37,8 +40,11 @@ when not. Without Wi-Fi the center reads "WiFi Disconnected"; with Wi-Fi but
 no Home Assistant API connection it reads "Home Assistant Disconnected".
 The console needs Home Assistant for everything it shows and does.
 
-The first touch after dimming only wakes the screen. The volume slider sends
-`volume_set` on release and ignores Home Assistant updates while dragged.
+The **Idle Dimming** switch in Home Assistant (on by default, remembered
+across restarts) turns dimming off; switching it off while dimmed restores
+full brightness. The first touch after dimming only wakes the screen. The
+volume slider sends `volume_set` on release and ignores Home Assistant
+updates while dragged.
 
 ```yaml
 substitutions:
