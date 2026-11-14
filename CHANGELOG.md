@@ -26,6 +26,8 @@ All notable changes to this project are documented here. The format follows
   Disconnected" instead of "Nothing playing" when a connection is down.
   New substitutions `media_console_player_name`, `media_console_time_format`,
   `media_console_ok_color` and `media_console_error_color`.
+- "Idle Dimming" switch in Home Assistant to turn the idle backlight dimming
+  off; on by default and remembered across restarts.
 
 ### Changed
 
@@ -37,3 +39,6 @@ All notable changes to this project are documented here. The format follows
 - The center message started as "Nothing playing" while the header icons
   showed Wi-Fi and Home Assistant disconnected, until the first status
   refresh a second later. It now starts as "WiFi Disconnected".
+- Idle dimming made the screen look switched off: the example backlights
+  used the default gamma of 2.8, which turned the 15% dim level into about
+  0.5% PWM duty. They now set `gamma_correct: 1.0`.

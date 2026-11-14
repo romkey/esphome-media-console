@@ -28,6 +28,8 @@
 #   media_console_art_size             album art edge in px (default 180)
 #   media_console_idle_dim_timeout     dim after this long untouched (default 60s)
 #   media_console_idle_dim_brightness  brightness while dimmed (default 15%)
+#                                      (the "Idle Dimming" switch in Home
+#                                      Assistant turns dimming off entirely)
 #   media_console_accent_color         UI accent color (default 0x4FC3F7)
 #   media_console_art_status_name      diagnostic entity name
 #                                      (default "Album Art Status")
@@ -221,6 +223,27 @@ binary_sensor:
 # --------------------------------------------------------------------------
 # Local state
 # --------------------------------------------------------------------------
+
+# Idle dimming on/off from Home Assistant; remembered across restarts.
+switch:
+  - platform: template
+    id: mc_idle_dimming
+    name: Idle Dimming
+    icon: mdi:brightness-6
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    # Off: back to full brightness now. On: dim now if already idle, since
+    # on_idle only fires at the moment the timeout passes.
+    on_turn_off:
+      - script.execute: mc_wake
+    on_turn_on:
+      - if:
+          condition:
+            lvgl.is_idle:
+              timeout: ${media_console_idle_dim_timeout}
+          then:
+            - script.execute: mc_dim
 
 globals:
   - id: mc_active          # true while playing/paused/buffering
@@ -560,7 +583,11 @@ lvgl:
   on_idle:
     - timeout: ${media_console_idle_dim_timeout}
       then:
-        - script.execute: mc_dim
+        - if:
+            condition:
+              switch.is_on: mc_idle_dimming
+            then:
+              - script.execute: mc_dim
   top_layer:
     widgets:
       - obj:

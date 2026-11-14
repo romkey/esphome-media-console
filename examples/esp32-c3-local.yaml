@@ -93,3 +93,6 @@ light:
     entity_category: config
     output: backlight_pwm
     restore_mode: ALWAYS_ON
+    # Linear, so the idle dim level is the PWM duty. The default gamma of 2.8
+    # turns 15% into about 0.5%, which looks like the screen is off.
+    gamma_correct: 1.0

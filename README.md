@@ -135,7 +135,8 @@ You need Docker and a Home Assistant instance.
 ### Using the package in your own config
 
 Your config must provide one `display`, one `touchscreen`, `wifi`, `api`, and
-a dimmable `light` for the backlight:
+a dimmable `light` for the backlight (with `gamma_correct: 1.0`, or the idle
+dim level is close to black):
 
 ```yaml
 substitutions:
